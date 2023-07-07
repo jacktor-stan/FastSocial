@@ -16,6 +16,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.OnBackPressedCallback
 
 class MainActivity : AppCompatActivity() {
     var webView: WebView? = null
@@ -49,13 +50,25 @@ class MainActivity : AppCompatActivity() {
         settings!!.javaScriptEnabled = true
         settings.allowFileAccess = true
         settings.allowFileAccessFromFileURLs = true
-        settings.userAgentString = "Fast Social"
+        settings.userAgentString = getString(R.string.app_name)
 
         // set the download listener
         webView?.setDownloadListener(downloadListener)
 
         // load the website
-        webView?.loadUrl("https://" + myWebSite)
+        webView?.loadUrl("https://$myWebSite")
+
+
+        //Tombol back
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView!!.canGoBack()) {
+                    webView!!.goBack()
+                } else {
+                    finish()
+                }
+            }
+        })
     }
 
     // after the file chosen handled, variables are returned back to MainActivity
@@ -192,13 +205,6 @@ class MainActivity : AppCompatActivity() {
             startActivity(i)
         }
 
-    override fun onBackPressed() {
-        if (webView!!.canGoBack()) {
-            webView!!.goBack()
-        } else {
-            finish()
-        }
-    }
 
     companion object {
         // if your website starts with www, exclude it
