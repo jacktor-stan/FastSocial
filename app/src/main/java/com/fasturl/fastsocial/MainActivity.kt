@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     var webView: WebView? = null
     var progressDialog: ProgressDialog? = null
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -30,9 +31,6 @@ class MainActivity : AppCompatActivity() {
         progressDialog!!.setCancelable(true)
         progressDialog!!.setMessage("Loading...")
         progressDialog!!.show()
-
-
-        //awokawok :v
 
         // get the web-view from the layout
         webView = findViewById(R.id.webView)
