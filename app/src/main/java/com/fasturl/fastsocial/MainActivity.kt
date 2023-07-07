@@ -31,9 +31,6 @@ class MainActivity : AppCompatActivity() {
         progressDialog!!.setMessage("Loading...")
         progressDialog!!.show()
 
-
-        //awokawok :v
-
         // get the web-view from the layout
         webView = findViewById(R.id.webView)
 
