@@ -39,17 +39,17 @@ class MainActivity : AppCompatActivity() {
         webView?.canGoBackOrForward(99)
 
         // handling web page browsing mechanism
-        webView?.setWebViewClient(myWebViewClient())
+        webView?.webViewClient = myWebViewClient()
 
         // handling file upload mechanism
-        webView?.setWebChromeClient(myWebChromeClient())
+        webView?.webChromeClient = myWebChromeClient()
 
         // some other settings
         val settings = webView?.getSettings()
         settings!!.javaScriptEnabled = true
         settings.allowFileAccess = true
         settings.allowFileAccessFromFileURLs = true
-        settings.setUserAgentString(WebView(this).settings.userAgentString)
+        settings.userAgentString = "Fast Social"
 
         // set the download listener
         webView?.setDownloadListener(downloadListener)
