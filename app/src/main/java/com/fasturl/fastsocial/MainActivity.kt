@@ -1,31 +1,38 @@
 package com.fasturl.fastsocial
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
+import android.webkit.GeolocationPermissions
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.SafeBrowsingResponseCompat
-import androidx.webkit.TracingConfig
-import androidx.webkit.TracingConfig.CATEGORIES_WEB_DEVELOPER
-import androidx.webkit.TracingController
 import androidx.webkit.WebResourceErrorCompat
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.fasturl.fastsocial.databinding.ActivityMainBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.concurrent.Executor
 
 
@@ -33,8 +40,62 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    var filePath: ValueCallback<Array<Uri>>? = null
+    var mGeoLocationRequestOrigin: String? = null
+    var mGeoLocationCallback: GeolocationPermissions.Callback? = null
+
+    private var requestCode = 0
+
+
     companion object {
+        var instance: MainActivity? = null
         val TAG: String = MainActivity::class.java.simpleName
+    }
+
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        permissions.entries.forEach {
+            if (it.value) {
+                //Toast.makeText(
+                //  this, it.value.toString(), Toast.LENGTH_SHORT
+                //).show()
+
+                when (requestCode) {
+                    1 -> {
+                        if (checkPermission(1)) mGeoLocationCallback?.invoke(
+                            mGeoLocationRequestOrigin,
+                            true,
+                            false
+                        ) else mGeoLocationCallback?.invoke(mGeoLocationRequestOrigin, false, false)
+
+                    }
+
+                    2 -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            //
+                        } else if (checkPermission(2)) {
+                            permissionBlockedDialog(R.string.storage_permission_not_granted)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    val getFile = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (it.resultCode == Activity.RESULT_CANCELED) {
+            filePath?.onReceiveValue(null)
+        } else if (it.resultCode == Activity.RESULT_OK && filePath != null) {
+            filePath!!.onReceiveValue(
+                WebChromeClient.FileChooserParams.parseResult(it.resultCode, it.data)
+            )
+            filePath = null
+        }
     }
 
     @SuppressLint("AddJavascriptInterface", "SetJavaScriptEnabled")
@@ -44,6 +105,8 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        instance = this
 
         //Tombol back
         //Periksa jika berada di laman lain fungsikan sebagai tombol kembali bukan keluar
@@ -62,12 +125,12 @@ class MainActivity : AppCompatActivity() {
             binding.swipeRefreshLayout.isRefreshing = false
         }
 
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.TRACING_CONTROLLER_BASIC_USAGE)) {
+        /*if (WebViewFeature.isFeatureSupported(WebViewFeature.TRACING_CONTROLLER_BASIC_USAGE)) {
             val tracingController = TracingController.getInstance()
             tracingController.start(
                 TracingConfig.Builder().addCategories(CATEGORIES_WEB_DEVELOPER).build()
             )
-        }
+        }*/
 
         binding.webView.apply {
             settings.apply {
@@ -134,7 +197,7 @@ class MainActivity : AppCompatActivity() {
         //WebSettingsCompat.setForceDark(binding.webView.settings, WebSettingsCompat.FORCE_DARK_ON)
         //}
 
-        binding.webView.loadUrl("https://fasturl.cloud/FastSocial/")
+        binding.webView.loadUrl("https://fasturl.cloud/FastSocial")
 
         // How to display local HTML, Ya makanya di kasih tau :v
         /*
@@ -154,7 +217,7 @@ class MainActivity : AppCompatActivity() {
         }
 
        // app default domain is "apppassets.androidplatform.net"
-        // main/assets/www/index.htmlをロード
+        // Load main/assets/www/index.html
         binding.webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
         */
     }
@@ -182,7 +245,8 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    private class CustomWebViewClient(private val activity: MainActivity) : WebViewClientCompat() {
+    private class CustomWebViewClient(private val activity: MainActivity) :
+        WebViewClientCompat() {
 
         override fun onPageCommitVisible(view: WebView, url: String) {
             super.onPageCommitVisible(view, url)
@@ -231,6 +295,68 @@ class MainActivity : AppCompatActivity() {
     private class CustomWebChromeClient(private val activity: MainActivity) :
         WebChromeClient() {
 
+        override fun onShowFileChooser(
+            webView: WebView?,
+            filePathCallback: ValueCallback<Array<Uri>>?,
+            fileChooserParams: FileChooserParams?
+        ): Boolean {
+
+            activity.filePath = filePathCallback
+            val contentIntent = Intent(Intent.ACTION_GET_CONTENT)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (activity.checkPermission(0)) {
+                    contentIntent.type = "*/*"
+                    contentIntent.addCategory(Intent.CATEGORY_OPENABLE)
+                    activity.getFile.launch(contentIntent)
+                } else {
+                    activity.permissionBlockedDialog(R.string.storage_permission_not_granted)
+                    //activity.requestPermission(2)
+                }
+            } else {
+                if (activity.checkPermission(2)) {
+                    contentIntent.type = "*/*"
+                    contentIntent.addCategory(Intent.CATEGORY_OPENABLE)
+                    activity.getFile.launch(contentIntent)
+                } else {
+                    activity.permissionBlockedDialog(R.string.storage_permission_not_granted)
+                    activity.requestPermission(2)
+                }
+
+            }
+            return true
+        }
+
+
+        override fun onGeolocationPermissionsShowPrompt(
+            origin: String,
+            callback: GeolocationPermissions.Callback
+        ) {
+            //var mGeoLocationRequestOrigin = null
+            //var mGeoLocationCallback = null
+            // Do We need to ask for permission?
+            if (!activity.checkPermission(1)) {
+
+                MaterialAlertDialogBuilder(activity).apply {
+                    setMessage("Diperlukan izin Lokasi, Tim developer harap berikan keterangan apa tujuan akses lokasi ini?")
+                    setNegativeButton(R.string.ok) { _, _ ->
+                        activity.mGeoLocationRequestOrigin = origin
+                        activity.mGeoLocationCallback = callback
+                        activity.requestPermission(1)
+                    }
+
+                    setPositiveButton(activity.getString(R.string.dialog_button_close)) { dialog, _ ->
+                        dialog.cancel()
+                    }
+                    show()
+                }
+            } else {
+                // Tell the WebView that permission has been granted
+                callback.invoke(origin, true, false)
+            }
+        }
+
+
         // required to run JavaScript
         override fun onJsAlert(
             view: WebView?, url: String?, message: String?, result: JsResult?
@@ -264,5 +390,73 @@ class MainActivity : AppCompatActivity() {
             activity.startActivity(browserIntent)
             return true
         }
+    }
+
+
+    //Checking if particular permission is given or not
+    fun checkPermission(permission: Int): Boolean {
+        when (permission) {
+            0 -> return true
+            1 -> return ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            2 -> return ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            3 -> return ContextCompat.checkSelfPermission(
+                this, Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+        return false
+    }
+
+
+    private fun requestPermission(permission: Int) {
+        when (permission) {
+            1 -> {
+                requestPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+                requestCode = permission
+            }
+
+            2 -> {
+                requestPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    )
+                )
+                requestCode = permission
+            }
+        }
+    }
+
+    private fun permissionBlockedDialog(msg: Int) {
+        MaterialAlertDialogBuilder(this).apply {
+            setMessage(msg)
+            setNegativeButton(R.string.open_settings) { _, _ ->
+
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val uri: Uri = Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+            }
+
+            setPositiveButton(getString(R.string.dialog_button_close)) { dialog, _ ->
+                dialog.cancel()
+            }
+
+            setCancelable(false)
+
+            show()
+        }
+
     }
 }

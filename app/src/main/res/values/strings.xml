@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Fast Social</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="dialog_button_close">Close</string>
+    <string name="storage_permission_not_granted">Storage permission not granted</string>
+    <string name="ok">OK</string>
 </resources>
