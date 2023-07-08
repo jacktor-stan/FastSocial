@@ -1,218 +1,268 @@
 package com.fasturl.fastsocial
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.app.ProgressDialog
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.webkit.DownloadListener
-import android.webkit.ValueCallback
+import android.os.Message
+import android.util.Log
+import android.view.KeyEvent
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
 import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.webkit.ProxyConfig
+import androidx.webkit.ProxyController
+import androidx.webkit.SafeBrowsingResponseCompat
+import androidx.webkit.TracingConfig
+import androidx.webkit.TracingConfig.CATEGORIES_WEB_DEVELOPER
+import androidx.webkit.TracingController
+import androidx.webkit.WebResourceErrorCompat
+import androidx.webkit.WebViewClientCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import com.fasturl.fastsocial.databinding.ActivityMainBinding
+import java.util.concurrent.Executor
+
 
 class MainActivity : AppCompatActivity() {
-    var webView: WebView? = null
-    var progressDialog: ProgressDialog? = null
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private lateinit var binding: ActivityMainBinding
+
+    companion object {
+        val TAG: String = MainActivity::class.java.simpleName
+    }
+
+    @SuppressLint("AddJavascriptInterface", "SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        //setContentView(R.layout.activity_main)
 
-        // initialize the progressDialog
-        progressDialog = ProgressDialog(this@MainActivity)
-        progressDialog!!.setCancelable(true)
-        progressDialog!!.setMessage("Loading...")
-        progressDialog!!.show()
-
-        // get the web-view from the layout
-        webView = findViewById(R.id.webView)
-
-        // for handling Android Device [Back] key press
-        webView?.canGoBackOrForward(99)
-
-        // handling web page browsing mechanism
-        webView?.webViewClient = myWebViewClient()
-
-        // handling file upload mechanism
-        webView?.webChromeClient = myWebChromeClient()
-
-        // some other settings
-        val settings = webView?.getSettings()
-        settings!!.javaScriptEnabled = true
-        settings.allowFileAccess = true
-        settings.allowFileAccessFromFileURLs = true
-        settings.userAgentString = getString(R.string.app_name)
-
-        // set the download listener
-        webView?.setDownloadListener(downloadListener)
-
-        // load the website
-        webView?.loadUrl("https://$myWebSite")
-
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         //Tombol back
+        //Periksa jika berada di laman lain fungsikan sebagai tombol kembali bukan keluar
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView!!.canGoBack()) {
-                    webView!!.goBack()
+                if (binding.webView.canGoBack()) {
+                    binding.webView.goBack()
                 } else {
                     finish()
                 }
             }
         })
-    }
 
-    // after the file chosen handled, variables are returned back to MainActivity
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            binding.webView.reload()
+            binding.swipeRefreshLayout.isRefreshing = false
+        }
 
-        // check if the chrome activity is a file choosing session
-        if (requestCode == file_chooser_activity_code) {
-            if (resultCode == RESULT_OK && data != null) {
-                var results: Array<Uri?>? = null
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.TRACING_CONTROLLER_BASIC_USAGE)) {
+            val tracingController = TracingController.getInstance()
+            tracingController.start(
+                TracingConfig.Builder().addCategories(CATEGORIES_WEB_DEVELOPER).build()
+            )
+        }
 
-                // Check if response is a multiple choice selection containing the results
-                if (data.clipData != null) {
-                    val count = data.clipData!!.itemCount
-                    results = arrayOfNulls(count)
-                    for (i in 0 until count) {
-                        results[i] = data.clipData!!.getItemAt(i).uri
-                    }
-                } else if (data.data != null) {
-                    // Response is a single choice selection
-                    results = arrayOf(data.data!!)
-                }
-                mUploadMessageArr!!.onReceiveValue(results as Array<Uri>)
-                mUploadMessageArr = null
-            } else {
-                mUploadMessageArr!!.onReceiveValue(null)
-                mUploadMessageArr = null
-                Toast.makeText(this@MainActivity, "Error getting file", Toast.LENGTH_LONG).show()
+        binding.webView.apply {
+            settings.apply {
+                // aktifkan Javascript
+                javaScriptEnabled = true
+
+                /*
+                 * Sets whether the WebView should support zooming using its on-screen zoom controls and gestures.
+                 * The particular zoom mechanisms that should be used can be set with setBuiltInZoomControls(boolean).
+                 * This setting does not affect zooming performed using the WebView#zoomIn() and WebView#zoomOut() methods.
+                 * The default is true.
+                 */
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false // no zoom button
+
+                loadWithOverviewMode = true
+                useWideViewPort = true
+
+                domStorageEnabled = true
+
+                userAgentString = getString(R.string.app_name)
             }
         }
-    }
 
-    internal inner class myWebViewClient : WebViewClient() {
-        //        // ==============================
-        //
-        //        // for handling api lower than 24
-        //        @SuppressWarnings("deprecation")
-        //        @Override
-        //        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-        //            final Uri uri = Uri.parse(url);
-        //            return handleUri(uri);
-        //        }
-        //
-        //        // for handling api higher than 24
-        //        @TargetApi(Build.VERSION_CODES.N)
-        //        @Override
-        //        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        //            final Uri uri = request.getUrl();
-        //            return handleUri(uri);
-        //        }
-        //
-        //        private boolean handleUri(final Uri uri) {
-        //            //Log.i(TAG, "Uri =" + uri);
-        //            final String host = uri.getHost();
-        //            final String scheme = uri.getScheme();
-        //            // Based on some condition you need to determine if you are going to load the url
-        //            // in your web view itself or in a browser.
-        //            // You can use `host` or `scheme` or any part of the `uri` to decide.
-        //            if (host == myWebSite) {
-        //                // Returning false means that you are going to load this url in the webView itself
-        //                return false;
-        //            } else {
-        //                // Returning true means that you need to handle what to do with the url
-        //                // e.g. open web page in a Browser
-        //                final Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        //                startActivity(intent);
-        //                return true;
-        //            }
-        //        }
-        //
-        override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-            super.onPageStarted(view, url, favicon)
-            //showing the progress bar once the page has started loading
-            progressDialog!!.show()
+        binding.webView.webViewClient = CustomWebViewClient(this)
+        binding.webView.webChromeClient = CustomWebChromeClient(this)
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROCESS)) {
+            Log.d(TAG, "isMultiProcessEnabled: " + WebViewCompat.isMultiProcessEnabled())
         }
 
-        override fun onPageFinished(view: WebView, url: String) {
-            super.onPageFinished(view, url)
-            // hide the progress bar once the page has loaded
-            progressDialog!!.dismiss()
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)) {
+            WebViewCompat.startSafeBrowsing(this.applicationContext) { value ->
+                Log.d(TAG, "WebViewCompat.startSafeBrowsing: $value")
+            }
+        }
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            // If proxy1.com fails, try proxy2.com in order from the top
+            val proxyConfig = ProxyConfig.Builder().addProxyRule("proxy1.cloud")
+                .addProxyRule("proxy2.cloud", ProxyConfig.MATCH_HTTP)
+                .addProxyRule("proxy3.cloud", ProxyConfig.MATCH_HTTPS)
+                .addBypassRule("fasturl.*") // プロキシ設定除外のホスト
+                .build()
+
+            // Executor for listener
+            val executor = Executor { Log.d(TAG, "${Thread.currentThread().name} : executor") }
+
+            // Called when a proxy setting change is accepted? It's like you're not called...
+            val listener = Runnable { Log.d(TAG, "${Thread.currentThread().name} : listener") }
+
+            // Override WebView proxy settings from system settings
+            ProxyController.getInstance().setProxyOverride(proxyConfig, executor, listener)
+
+            // restore system settings
+            ProxyController.getInstance().clearProxyOverride(executor, listener)
+        }
+
+        //if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+        //WebSettingsCompat.getForceDark(binding.webView.settings)
+        //WebSettingsCompat.setForceDark(binding.webView.settings, WebSettingsCompat.FORCE_DARK_AUTO)
+        //WebSettingsCompat.setForceDark(binding.webView.settings, WebSettingsCompat.FORCE_DARK_OFF)
+        //WebSettingsCompat.setForceDark(binding.webView.settings, WebSettingsCompat.FORCE_DARK_ON)
+        //}
+
+        binding.webView.loadUrl("https://fasturl.cloud/FastSocial/")
+
+        // How to display local HTML, Ya makanya di kasih tau :v
+        /*
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", AssetsPathHandler(this)) // Registering the main/assets directory
+            .addPathHandler("/res/", ResourcesPathHandler(this)) // Register main/res directory
+            .build()
+
+        binding.webView.webViewClient = object : WebViewClient() {
+            // Hook the request URL and display the local file
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+        }
+
+       // app default domain is "apppassets.androidplatform.net"
+        // main/assets/www/index.htmlをロード
+        binding.webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
+        */
+    }
+
+    override fun onDestroy() {
+        binding.webView.destroy()
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        binding.webView.onResume()
+    }
+
+    override fun onPause() {
+        binding.webView.onPause()
+        super.onPause()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && binding.webView.canGoBack()) {
+            binding.webView.goBack()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private class CustomWebViewClient(private val activity: MainActivity) : WebViewClientCompat() {
+
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            super.onPageCommitVisible(view, url)
+            Log.d(TAG, "onPageCommitVisible: $url")
         }
 
         override fun onReceivedError(
-            view: WebView,
-            request: WebResourceRequest,
-            error: WebResourceError
+            view: WebView, request: WebResourceRequest, error: WebResourceErrorCompat
         ) {
             super.onReceivedError(view, request, error)
-            // show the error message = no internet access
-            webView!!.loadUrl("file:///android_asset/no_internet.html")
-            // hide the progress bar on error in loading
-            progressDialog!!.dismiss()
-            Toast.makeText(applicationContext, "Internet issue", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "onReceivedError: $error")
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse
+        ) {
+            super.onReceivedHttpError(view, request, errorResponse)
+            Log.d(TAG, "onReceivedHttpError: $errorResponse")
+        }
+
+        override fun onSafeBrowsingHit(
+            view: WebView,
+            request: WebResourceRequest,
+            threatType: Int,
+            callback: SafeBrowsingResponseCompat
+        ) {
+            super.onSafeBrowsingHit(view, request, threatType, callback)
+            Log.d(TAG, "onSafeBrowsingHit: $threatType")
+        }
+
+        override fun shouldOverrideUrlLoading(
+            view: WebView, request: WebResourceRequest
+        ): Boolean {
+            Log.d(TAG, "shouldOverrideUrlLoading: ${request.url}")
+            return false
+        }
+
+
+        // Notified when the screen (URL) changes due to actions such as clicking or returning
+        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+            super.doUpdateVisitedHistory(view, url, isReload)
+            Log.d(TAG, "doUpdateVisitedHistory: $activity.binding.webView.url")
         }
     }
 
-    // Calling WebChromeClient to select files from the device
-    inner class myWebChromeClient : WebChromeClient() {
-        @SuppressLint("NewApi")
-        override fun onShowFileChooser(
-            webView: WebView,
-            valueCallback: ValueCallback<Array<Uri>>,
-            fileChooserParams: FileChooserParams
+    private class CustomWebChromeClient(private val activity: MainActivity) :
+        WebChromeClient() {
+
+        // required to run JavaScript
+        override fun onJsAlert(
+            view: WebView?, url: String?, message: String?, result: JsResult?
         ): Boolean {
-            val intent = Intent(Intent.ACTION_GET_CONTENT)
-            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            return false
+        }
 
-            // set single file type, e.g. "image/*" for images
-            intent.type = "*/*"
+        // required to run JavaScript
+        override fun onJsPrompt(
+            view: WebView?,
+            url: String?,
+            message: String?,
+            defaultValue: String?,
+            result: JsPromptResult?
+        ): Boolean {
+            return false
+        }
 
-            // set multiple file types
-            val mimeTypes = arrayOf("image/*", "application/pdf")
-            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-            val chooserIntent = Intent.createChooser(intent, "Choose file")
-            (webView.context as Activity).startActivityForResult(
-                chooserIntent,
-                file_chooser_activity_code
-            )
+        // needed to react <a target="_blank">
+        override fun onCreateWindow(
+            view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?
+        ): Boolean {
+            view ?: return false
 
-            // Save the callback for handling the selected file
-            mUploadMessageArr = valueCallback
+            val href = view.handler.obtainMessage()
+            view.requestFocusNodeHref(href)
+            val url = href.data.getString("url")
+
+            view.stopLoading()
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            activity.startActivity(browserIntent)
             return true
         }
-    }
-
-    var downloadListener =
-        DownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
-            progressDialog!!.dismiss()
-            val i = Intent(Intent.ACTION_VIEW)
-
-            // example of URL = https://www.pony.com/invoice.pdf
-            i.data = Uri.parse(url)
-            startActivity(i)
-        }
-
-
-    companion object {
-        // if your website starts with www, exclude it
-        private const val myWebSite = "fasturl.cloud/FastSocial"
-
-        // for handling file upload, set a static value, any number you like
-        // this value will be used by WebChromeClient during file upload
-        private const val file_chooser_activity_code = 1
-        private var mUploadMessageArr: ValueCallback<Array<Uri>>? = null
     }
 }
