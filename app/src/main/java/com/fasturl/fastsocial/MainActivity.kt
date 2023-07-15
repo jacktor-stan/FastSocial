@@ -24,6 +24,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.SafeBrowsingResponseCompat
@@ -103,8 +104,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         //setContentView(R.layout.activity_main)
 
+        installSplashScreen()
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+
+
 
         instance = this
 
@@ -120,10 +126,10 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        binding.swipeRefreshLayout.setOnRefreshListener {
+        /*binding.swipeRefreshLayout.setOnRefreshListener {
             binding.webView.reload()
             binding.swipeRefreshLayout.isRefreshing = false
-        }
+        }*/
 
         /*if (WebViewFeature.isFeatureSupported(WebViewFeature.TRACING_CONTROLLER_BASIC_USAGE)) {
             val tracingController = TracingController.getInstance()
