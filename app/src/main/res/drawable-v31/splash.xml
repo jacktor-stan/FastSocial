@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <item android:drawable="@color/black" />
-
     <item
+        android:width="120dp"
+        android:height="120dp"
         android:drawable="@drawable/ic_splash_logo"
         android:gravity="center">
-
     </item>
 
-    <item
-        android:width="150dp"
-        android:height="65dp"
-        android:bottom="50dp"
-        android:drawable="@mipmap/ic_brand"
-        android:gravity="center|bottom" />
 </layer-list>
